@@ -113,48 +113,34 @@
             updateLanguage();
         });
 
-        // Load configuration file
-        configInput.addEventListener("change", async (event) => {
-            const file = event.target.files[0];
-            if (file) {
-                const content = await file.text();
-                try {
-                    configData = JSON.parse(content);
-                    alert(languages[currentLanguage].loadConfigSuccess);
-                } catch (e) {
-                    alert(languages[currentLanguage].loadConfigError);
-                }
-            }
-        });
-
         // Load folder and list files
         folderInput.addEventListener("change", async (event) => {
             const files = event.target.files;
             fileData = {};
+            fileSelector.innerHTML = '<option value="">Select a file</option>';
 
             for (const file of files) {
                 const content = await file.text();
                 try {
-                    const parsedContent = JSON.parse(content);
-                    fileData[file.name] = parsedContent;
+                    fileData[file.name] = JSON.parse(content);
                     const option = document.createElement("option");
                     option.value = file.name;
                     option.textContent = file.name;
                     fileSelector.appendChild(option);
                 } catch (e) {
-                    console.warn(`文件 ${file.name} 無法解析: ${e.message}`);
+                    console.warn(`Failed to parse file ${file.name}: ${e.message}`);
                 }
             }
         });
 
         // Recursively create editor for nested data
-        function createEditor(data, parentElement) {
+        function createEditor(data, parentElement, path = "") {
             for (const key in data) {
+                const currentPath = path ? `${path}.${key}` : key;
                 const div = document.createElement("div");
                 div.classList.add("key-value");
 
                 const label = document.createElement("label");
-                label.classList.add("key-name");
                 label.textContent = key;
                 div.appendChild(label);
 
@@ -162,16 +148,31 @@
                     const nestedDiv = document.createElement("div");
                     nestedDiv.classList.add("nested");
                     div.appendChild(nestedDiv);
-                    createEditor(data[key], nestedDiv);
+                    createEditor(data[key], nestedDiv, currentPath);
                 } else {
                     const input = document.createElement("input");
+                    input.dataset.path = currentPath;
                     input.value = data[key];
-                    input.dataset.key = key;
+                    input.type = typeof data[key] === "number" ? "number" : "text";
                     div.appendChild(input);
                 }
 
                 parentElement.appendChild(div);
             }
+        }
+
+        // Update data from inputs
+        function updateData(data, parentElement) {
+            const inputs = parentElement.querySelectorAll("input[data-path]");
+            inputs.forEach(input => {
+                const path = input.dataset.path.split(".");
+                let target = data;
+
+                for (let i = 0; i < path.length - 1; i++) {
+                    target = target[path[i]];
+                }
+                target[path[path.length - 1]] = input.type === "number" ? parseFloat(input.value) : input.value;
+            });
         }
 
         // Handle file selection
@@ -187,7 +188,10 @@
         // Save modified file
         saveButton.addEventListener("click", () => {
             const selectedFile = fileSelector.value;
+
             if (selectedFile && fileData[selectedFile]) {
+                updateData(fileData[selectedFile], editorContent);
+
                 const blob = new Blob([JSON.stringify(fileData[selectedFile], null, 4)], { type: "application/json" });
                 const a = document.createElement("a");
                 a.href = URL.createObjectURL(blob);
