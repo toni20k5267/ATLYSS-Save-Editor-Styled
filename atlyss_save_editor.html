@@ -130,97 +130,88 @@
         // Load folder and list files
         folderInput.addEventListener("change", async (event) => {
             const files = event.target.files;
-            fileList.innerHTML = ""; // Clear previous file list
-            fileSelector.innerHTML = '<option value="">Select a file</option>'; // Reset dropdown
             fileData = {};
 
             for (const file of files) {
+                const content = await file.text();
                 try {
-                    const content = await file.text();
-                    const parsedContent = JSON.parse(content); // Try to parse JSON
-                    fileData[file.name] = parsedContent;
-
-                    // Update file list
-                    const li = document.createElement("li");
-                    li.textContent = file.name;
-                    fileList.appendChild(li);
-
-                    // Update file selector
+                    const parsedContent = JSON.parse(content);
+                    fileData[file.name] = isFlatStructure(parsedContent)
+                        ? restoreNestedStructure(parsedContent)
+                        : parsedContent;
                     const option = document.createElement("option");
                     option.value = file.name;
                     option.textContent = file.name;
                     fileSelector.appendChild(option);
                 } catch (e) {
-                    console.warn(`Cannot parse file ${file.name}. It may not be valid JSON.`);
+                    console.warn(`文件 ${file.name} 無法解析: ${e.message}`);
                 }
             }
         });
+
+        function isFlatStructure(data) {
+            return Object.keys(data).some(key => /^\d+$/.test(key));
+        }
+
+        function restoreNestedStructure(data) {
+            const nestedData = {};
+            Object.keys(data).forEach(key => {
+                if (/^\d+$/.test(key)) {
+                    nestedData[key] = data[key];
+                } else {
+                    nestedData[key] = data[key];
+                }
+            });
+            return nestedData;
+        }
+
 
         // Recursively create editor for nested data
         function createEditor(data, parentElement, path = "") {
             for (const key in data) {
                 const currentPath = path ? `${path}.${key}` : key;
-                const config = configData[currentPath] || {};
+
                 const div = document.createElement("div");
                 div.classList.add("key-value");
 
                 const label = document.createElement("label");
                 label.classList.add("key-name");
-                label.textContent = config.displayName || `Key: ${key}`;
+                label.textContent = key;
                 div.appendChild(label);
 
-                if (typeof data[key] === "object" && data[key] !== null) {
+                if (typeof data[key] === "object" && data[key] !== null && !Array.isArray(data[key])) {
                     const nestedDiv = document.createElement("div");
                     nestedDiv.classList.add("nested");
                     div.appendChild(nestedDiv);
                     createEditor(data[key], nestedDiv, currentPath);
-                } else if (config.options) {
-                    const select = document.createElement("select");
-                    select.dataset.key = key;
-                    select.dataset.path = currentPath;
-
-                    config.options.forEach((optionValue) => {
-                        const option = document.createElement("option");
-                        option.value = optionValue;
-                        option.textContent = optionValue;
-                        option.selected = data[key] == optionValue;
-                        select.appendChild(option);
-                    });
-
-                    div.appendChild(select);
-                } else if (typeof data[key] === "boolean") {
-                    const select = document.createElement("select");
-                    select.dataset.key = key;
-                    select.dataset.path = currentPath;
-
-                    ["true", "false"].forEach((optionValue) => {
-                        const option = document.createElement("option");
-                        option.value = optionValue;
-                        option.textContent = optionValue;
-                        option.selected = data[key].toString() === optionValue;
-                        select.appendChild(option);
-                    });
-
-                    div.appendChild(select);
-                } else if (typeof data[key] === "number") {
-                    const input = document.createElement("input");
-                    input.type = "number";
-                    input.value = data[key];
-                    input.dataset.key = key;
-                    input.dataset.path = currentPath;
-                    div.appendChild(input);
-                } else if (typeof data[key] === "string") {
-                    const input = document.createElement("input");
-                    input.type = "text";
-                    input.value = data[key];
-                    input.dataset.key = key;
-                    input.dataset.path = currentPath;
+                } else {
+                    const input = createInputForValue(data[key], currentPath);
                     div.appendChild(input);
                 }
 
                 parentElement.appendChild(div);
             }
         }
+
+        function createInputForValue(value, path) {
+            const input = document.createElement("input");
+            input.dataset.path = path;
+
+            if (typeof value === "boolean") {
+                input.type = "checkbox";
+                input.checked = value;
+            } else if (typeof value === "number") {
+                input.type = "number";
+                input.value = value;
+            } else {
+                input.type = "text";
+                input.value = value;
+            }
+
+            return input;
+        }
+
+
 
         // Handle file selection
         fileSelector.addEventListener("change", () => {
@@ -241,27 +232,25 @@
                 const data = fileData[selectedFile];
 
                 function updateData(data, parentElement) {
-                    const inputs = parentElement.querySelectorAll("[data-key]");
+                    const inputs = parentElement.querySelectorAll("input[data-path]");
 
-                    inputs.forEach((input) => {
-                        const key = input.dataset.key;
-                        const path = input.dataset.path;
+                    inputs.forEach(input => {
+                        const path = input.dataset.path.split(".");
+                        let target = data;
 
-                        if (configData[path] && configData[path].options) {
-                            data[key] = input.value;
-                        } else if (input.tagName === "SELECT") {
-                            data[key] = input.value === "true";
-                        } else if (input.type === "number") {
-                            data[key] = parseFloat(input.value);
-                        } else {
-                            data[key] = input.value;
+                        for (let i = 0; i < path.length - 1; i++) {
+                            target = target[path[i]];
                         }
-                    });
 
-                    const nestedDivs = parentElement.querySelectorAll(".nested");
-                    nestedDivs.forEach((nestedDiv) => {
-                        const parentKey = nestedDiv.parentElement.querySelector(".key-name").textContent.split(": ")[1];
-                        updateData(data[parentKey], nestedDiv);
+                        const key = path[path.length - 1];
+
+                        if (input.type === "checkbox") {
+                            target[key] = input.checked;
+                        } else if (input.type === "number") {
+                            target[key] = parseFloat(input.value);
+                        } else {
+                            target[key] = input.value;
+                        }
                     });
                 }
 
