@@ -1,6 +1,12 @@
 English | [繁體中文](README_TCH.md)
 
 # ATLYSS Save Editor  
+## Update
+### Item Search
+* Load config with [item_config.json](config/item_config.json)
+* Item can use search to filter options
+* More detailed item data can brwose [item_data.txt](data/only_level_item_data.txt)
+* ![item_config](image/item_config.png)
 ## How to Use  
 * **Remember to back up your save files before proceeding.**  
 
