@@ -107,10 +107,18 @@
             saveButton.textContent = languages[currentLanguage].saveButton;
         }
 
-        // Handle language change
-        languageSelector.addEventListener("change", () => {
-            currentLanguage = languageSelector.value;
-            updateLanguage();
+        // Load configuration file
+        configInput.addEventListener("change", async (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const content = await file.text();
+                try {
+                    configData = JSON.parse(content);
+                    alert(languages[currentLanguage].loadConfigSuccess);
+                } catch (e) {
+                    alert(languages[currentLanguage].loadConfigError);
+                }
+            }
         });
 
         // Load folder and list files
@@ -137,14 +145,67 @@
         function createEditor(data, parentElement, path = "") {
             for (const key in data) {
                 const currentPath = path ? `${path}.${key}` : key;
+                const config = configData[key] || {}; // Get config for the current key
                 const div = document.createElement("div");
                 div.classList.add("key-value");
 
                 const label = document.createElement("label");
-                label.textContent = key;
+                label.textContent = config.displayName || key;
                 div.appendChild(label);
 
-                if (typeof data[key] === "object" && data[key] !== null) {
+                if (config.options) {
+                    // Dropdown with searchable options
+                    const wrapper = document.createElement("div");
+                    wrapper.style.position = "relative";
+                    wrapper.style.width = "300px"
+
+                    // Create search input inside the dropdown wrapper
+                    const searchInput = document.createElement("input");
+                    searchInput.type = "text";
+                    searchInput.placeholder = "Search...";
+                    searchInput.style.width = "100%";
+                    searchInput.style.marginBottom = "5px";
+                    searchInput.style.padding = "5px";
+
+                    // Create dropdown (select element)
+                    const select = document.createElement("select");
+                    select.dataset.path = currentPath;
+                    select.style.width = "100%";
+                    select.style.marginTop = "5px";
+
+                    // Function to update dropdown options based on search
+                    function updateDropdownOptions(filterText = "") {
+                        select.innerHTML = ""; // Clear existing options
+                        config.options
+                            .filter(option => option.toLowerCase().includes(filterText.toLowerCase()))
+                            .forEach(option => {
+                                const optionElement = document.createElement("option");
+                                optionElement.value = option;
+                                optionElement.textContent = option;
+                                select.appendChild(optionElement);
+                            });
+
+                        // Preserve the currently selected value if it matches the filter
+                        if (data[key] && config.options.includes(data[key])) {
+                            select.value = data[key];
+                        }
+                    }
+
+                    // Initialize dropdown with all options
+                    updateDropdownOptions();
+
+                    // Add event listener for search input
+                    searchInput.addEventListener("input", (event) => {
+                        updateDropdownOptions(event.target.value);
+                    });
+
+                    // Append search input and dropdown to wrapper
+                    wrapper.appendChild(searchInput);
+                    wrapper.appendChild(select);
+
+                    // Append wrapper to the parent element
+                    div.appendChild(wrapper);
+                } else if (typeof data[key] === "object" && data[key] !== null) {
                     const nestedDiv = document.createElement("div");
                     nestedDiv.classList.add("nested");
                     div.appendChild(nestedDiv);
@@ -161,9 +222,10 @@
             }
         }
 
+
         // Update data from inputs
         function updateData(data, parentElement) {
-            const inputs = parentElement.querySelectorAll("input[data-path]");
+            const inputs = parentElement.querySelectorAll("input[data-path], select[data-path]");
             inputs.forEach(input => {
                 const path = input.dataset.path.split(".");
                 let target = data;
@@ -171,7 +233,7 @@
                 for (let i = 0; i < path.length - 1; i++) {
                     target = target[path[i]];
                 }
-                target[path[path.length - 1]] = input.type === "number" ? parseFloat(input.value) : input.value;
+                target[path[path.length - 1]] = input.value;
             });
         }
 
