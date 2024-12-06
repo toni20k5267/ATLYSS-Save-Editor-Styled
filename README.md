@@ -21,6 +21,7 @@ English | [繁體中文](README_TCH.md)
 6. Once selected, the file will be loaded.  
 7. Make the modifications you need.  
 8. Click "Download Modified File" to save the edited file.  
+   * The downloaded file needs to have the ```.json``` file extension removed.
 9. Back up your save folder and store it in a safe place.  
 10. Replace the original save file in the save folder with the modified file.  
 11. Launch the game and enjoy your edits!  
