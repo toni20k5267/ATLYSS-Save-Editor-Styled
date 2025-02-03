@@ -1,5 +1,4 @@
 English | [繁體中文](README_TCH.md)
-# [Online Preview](https://toni20k5267.github.io/ATLYSS-Save-Editor/)
 # ATLYSS Save Editor  
 ## Update
 ### Item Search
